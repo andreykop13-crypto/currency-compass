@@ -40,6 +40,8 @@ interface AppContextType {
   favoritePairs: FavoritePair[];
   toggleFavoritePair: (from: CurrencyCode, to: CurrencyCode) => void;
   isFavoritePair: (from: CurrencyCode, to: CurrencyCode) => boolean;
+  recentCurrencies: string[];
+  addRecentCurrency: (code: string) => void;
 }
 
 const CURRENCIES: Record<CurrencyCode, Currency> = {
@@ -85,6 +87,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     { from: 'USD', to: 'EUR' },
     { from: 'EUR', to: 'ILS' },
   ]);
+  const [recentCurrencies, setRecentCurrencies] = useState<string[]>([]);
+
+  const addRecentCurrency = (code: string) => {
+    setRecentCurrencies(prev => [code, ...prev.filter(item => item !== code)].slice(0, 5));
+  };
 
   const convert = (amount: number, from: CurrencyCode, to: CurrencyCode): number => {
     const fromRate = CURRENCIES[from].rateToUSD;
@@ -142,6 +149,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       baseCurrency, setBaseCurrency,
       convert, formatAmount, getCurrencyName,
       favoritePairs, toggleFavoritePair, isFavoritePair,
+      recentCurrencies, addRecentCurrency,
     }}>
       {children}
     </AppContext.Provider>

@@ -46,7 +46,7 @@ export default function CurrencyPicker({
 }: Props) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const { recentCurrencies, language } = useAppContext();
+  const { recentCurrencies, addRecentCurrency, language } = useAppContext();
   const isWeb = Platform.OS === 'web';
 
   const [query, setQuery] = useState('');
@@ -63,7 +63,6 @@ export default function CurrencyPicker({
       .map(code => ALL_CURRENCIES.find(c => c.code === code))
       .filter(Boolean) as CurrencyInfo[];
 
-    const recentSet = new Set(recentCurrencies);
     const recent = recentCurrencies
       .map(code => ALL_CURRENCIES.find(c => c.code === code))
       .filter(Boolean) as CurrencyInfo[];
@@ -98,6 +97,7 @@ export default function CurrencyPicker({
 
   const handleSelect = (code: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    addRecentCurrency(code);
     onSelect(code);
     setQuery('');
     onClose();
