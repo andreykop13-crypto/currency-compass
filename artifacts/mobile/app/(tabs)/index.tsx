@@ -42,7 +42,10 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const t = useTranslation();
-  const { currencies, convert, language, setLanguage, favoritePairs, baseCurrency } = useAppContext();
+  const {
+    currencies, convert, formatAmount, language, setLanguage, favoritePairs,
+    baseCurrency, walletBalances,
+  } = useAppContext();
   const router = useRouter();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -60,8 +63,26 @@ export default function HomeScreen() {
     .map(code => ({
       label: code,
       value: `1 ${baseCurrency} = ${convert(1, baseCurrency, code).toFixed(code === 'RUB' ? 1 : 2)} ${currencies[code].symbol}`,
-      change: currencies[code].change24h,
+      change: ((1 + currencies[code].change24h / 100) /
+        (1 + currencies[baseCurrency].change24h / 100) - 1) * 100,
     }));
+
+  const portfolioValue = walletBalances.reduce(
+    (sum, balance) => sum + convert(balance.amount, balance.currency, baseCurrency),
+    0,
+  );
+  const previousPortfolioValue = walletBalances.reduce((sum, balance) => {
+    const currency = currencies[balance.currency];
+    const base = currencies[baseCurrency];
+    const previousCurrencyRate = currency.rateToUSD / (1 + currency.change24h / 100);
+    const previousBaseRate = base.rateToUSD / (1 + base.change24h / 100);
+    return sum + (balance.amount * previousBaseRate) / previousCurrencyRate;
+  }, 0);
+  const portfolioDelta = portfolioValue - previousPortfolioValue;
+  const portfolioDeltaPercent = previousPortfolioValue === 0
+    ? 0
+    : (portfolioDelta / previousPortfolioValue) * 100;
+  const portfolioDirectionColor = portfolioDelta >= 0 ? '#5DFFCD' : '#FF8585';
 
   const displayPairs = favoritePairs.length > 0
     ? favoritePairs.slice(0, 4)
@@ -109,6 +130,61 @@ export default function HomeScreen() {
       textTransform: 'uppercase',
       marginBottom: 10,
       marginTop: 20,
+    },
+    summaryCard: {
+      marginHorizontal: 20,
+      borderRadius: colors.radius,
+      overflow: 'hidden',
+    },
+    summaryGrad: { padding: 20 },
+    summaryLabel: {
+      fontSize: 11,
+      fontFamily: 'Inter_600SemiBold',
+      color: 'rgba(255,255,255,0.7)',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    summaryValue: {
+      marginTop: 8,
+      fontSize: 38,
+      fontFamily: 'Inter_700Bold',
+      color: '#FFFFFF',
+      letterSpacing: -1,
+    },
+    summaryCaption: {
+      marginTop: 2,
+      fontSize: 12,
+      fontFamily: 'Inter_400Regular',
+      color: 'rgba(255,255,255,0.65)',
+    },
+    summaryBottom: {
+      marginTop: 18,
+      paddingTop: 14,
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(255,255,255,0.15)',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    summaryChange: {
+      fontSize: 14,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    summaryPeriod: {
+      marginTop: 2,
+      fontSize: 11,
+      fontFamily: 'Inter_400Regular',
+      color: 'rgba(255,255,255,0.55)',
+    },
+    summaryLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    summaryLinkText: {
+      fontSize: 13,
+      fontFamily: 'Inter_600SemiBold',
+      color: '#FFFFFF',
     },
     // Market card
     marketCard: {
@@ -316,7 +392,41 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Immediate portfolio summary in the base currency selected at onboarding */}
+        <TouchableOpacity
+          style={s.summaryCard}
+          onPress={() => handleNav('/wallet')}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`${t('moneyNow')}: ${formatAmount(portfolioValue)} ${baseCurrency}`}
+        >
+          <LinearGradient
+            colors={[colors.gradientStart, colors.gradientEnd]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.summaryGrad}
+          >
+            <Text style={s.summaryLabel}>{t('moneyNow')}</Text>
+            <Text style={s.summaryValue}>{formatAmount(portfolioValue)} {baseCurrency}</Text>
+            <Text style={s.summaryCaption}>{t('acrossCurrencies')}</Text>
+            <View style={s.summaryBottom}>
+              <View>
+                <Text style={[s.summaryChange, { color: portfolioDirectionColor }]}>
+                  {portfolioDelta >= 0 ? '+' : '−'}{formatAmount(Math.abs(portfolioDelta))} {baseCurrency}
+                  {'  '}{portfolioDelta >= 0 ? '+' : '−'}{Math.abs(portfolioDeltaPercent).toFixed(2)}%
+                </Text>
+                <Text style={s.summaryPeriod}>{t('sinceYesterday')}</Text>
+              </View>
+              <View style={s.summaryLink}>
+                <Text style={s.summaryLinkText}>{t('openWallet')}</Text>
+                <Feather name="chevron-right" size={16} color="#FFFFFF" />
+              </View>
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+
         {/* Market overview card */}
+        <Text style={[s.sectionLabel, s.sectionPad]}>{t('marketOverview')}</Text>
         <View style={s.marketCard}>
           <LinearGradient
             colors={[colors.gradientStart, colors.gradientEnd]}
@@ -324,7 +434,7 @@ export default function HomeScreen() {
             end={{ x: 1, y: 1 }}
             style={s.marketGrad}
           >
-            <Text style={s.marketTitle}>{t('marketOverview')}</Text>
+            <Text style={s.marketTitle}>{baseCurrency}</Text>
             {marketRates.map((r, i) => (
               <React.Fragment key={r.label}>
                 <View style={s.rateRow}>
