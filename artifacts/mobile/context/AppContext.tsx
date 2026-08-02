@@ -35,6 +35,8 @@ interface AppContextType {
   removeBalance: (id: string) => void;
   baseCurrency: CurrencyCode;
   setBaseCurrency: (currency: CurrencyCode) => void;
+  needsOnboarding: boolean;
+  completeOnboarding: (currency: CurrencyCode) => void;
   convert: (amount: number, from: CurrencyCode, to: CurrencyCode) => number;
   formatAmount: (amount: number) => string;
   getCurrencyName: (code: CurrencyCode) => string;
@@ -105,6 +107,7 @@ interface PersistedAppState {
   walletBalances: WalletBalance[];
   favoritePairs: FavoritePair[];
   recentCurrencies: string[];
+  onboardingCompleted: boolean;
 }
 
 const isCurrencyCode = (value: unknown): value is CurrencyCode =>
@@ -123,6 +126,8 @@ function parsePersistedState(value: string): Partial<PersistedAppState> {
   if (isLanguage(state.language)) result.language = state.language;
   if (isCurrencyCode(state.baseCurrency))
     result.baseCurrency = state.baseCurrency;
+  if (typeof state.onboardingCompleted === 'boolean')
+    result.onboardingCompleted = state.onboardingCompleted;
 
   if (Array.isArray(state.walletBalances)) {
     result.walletBalances = state.walletBalances.filter(
@@ -157,6 +162,7 @@ function parsePersistedState(value: string): Partial<PersistedAppState> {
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [hasHydrated, setHasHydrated] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [language, setLanguage] = useState<Language>('ru');
   const [baseCurrency, setBaseCurrency] = useState<CurrencyCode>('USD');
   const [walletBalances, setWalletBalances] = useState<WalletBalance[]>([
@@ -176,8 +182,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     AsyncStorage.getItem(STORAGE_KEY)
       .then((value) => {
-        if (!isMounted || !value) return;
+        if (!isMounted) return;
+        if (!value) {
+          setNeedsOnboarding(true);
+          return;
+        }
         const saved = parsePersistedState(value);
+        if (saved.onboardingCompleted === false) setNeedsOnboarding(true);
         if (saved.language) setLanguage(saved.language);
         if (saved.baseCurrency) setBaseCurrency(saved.baseCurrency);
         if (saved.walletBalances) setWalletBalances(saved.walletBalances);
@@ -203,6 +214,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       walletBalances,
       favoritePairs,
       recentCurrencies,
+      onboardingCompleted: !needsOnboarding,
     };
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch((error) =>
       console.warn('Unable to save app state', error),
@@ -214,6 +226,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     walletBalances,
     favoritePairs,
     recentCurrencies,
+    needsOnboarding,
   ]);
 
   if (!hasHydrated) return null;
@@ -222,6 +235,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setRecentCurrencies((prev) =>
       [code, ...prev.filter((item) => item !== code)].slice(0, 5),
     );
+  };
+
+  const completeOnboarding = (currency: CurrencyCode) => {
+    setBaseCurrency(currency);
+    setNeedsOnboarding(false);
   };
 
   const convert = (
@@ -290,6 +308,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         removeBalance,
         baseCurrency,
         setBaseCurrency,
+        needsOnboarding,
+        completeOnboarding,
         convert,
         formatAmount,
         getCurrencyName,
