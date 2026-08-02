@@ -1,553 +1,157 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Modal, Platform,
+  Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useTranslation } from '@/hooks/useTranslation';
-import { useAppContext, CurrencyCode, Language } from '@/context/AppContext';
+import { CurrencyCode, Language, useAppContext } from '@/context/AppContext';
 
-const CURRENCY_PAIRS: Array<{ from: CurrencyCode; to: CurrencyCode }> = [
-  { from: 'USD', to: 'ILS' },
-  { from: 'USD', to: 'EUR' },
-  { from: 'EUR', to: 'ILS' },
-  { from: 'USD', to: 'RUB' },
-];
-
-function getGreeting(t: ReturnType<typeof useTranslation>): string {
-  const h = new Date().getHours();
-  if (h >= 5 && h < 12) return t('goodMorning');
-  if (h >= 12 && h < 18) return t('goodDay');
-  return t('goodEvening');
-}
-
-function formatDate(language: Language): string {
-  const now = new Date();
-  const locale = language === 'en' ? 'en-US' : language === 'he' ? 'he-IL' : 'ru-RU';
-  return now.toLocaleDateString(locale, { day: 'numeric', month: 'long' });
-}
-
-const LANGS: Array<{ code: Language; label: string; native: string }> = [
-  { code: 'ru', label: 'Русский', native: 'RU' },
-  { code: 'en', label: 'English', native: 'EN' },
-  { code: 'he', label: 'עברית', native: 'HE' },
+const CODES: CurrencyCode[] = ['USD', 'EUR', 'ILS', 'RUB', 'BYN'];
+const SYMBOLS: Record<CurrencyCode, string> = { USD: '$', EUR: '€', ILS: '₪', RUB: '₽', BYN: 'Br' };
+const POPULAR: CurrencyCode[] = ['USD', 'EUR', 'ILS', 'RUB'];
+const LANGS: Array<{ code: Language; label: string }> = [
+  { code: 'ru', label: 'Русский' }, { code: 'en', label: 'English' }, { code: 'he', label: 'עברית' },
 ];
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const t = useTranslation();
-  const {
-    currencies, convert, formatAmount, language, setLanguage, favoritePairs,
-    baseCurrency, walletBalances,
-  } = useAppContext();
   const router = useRouter();
+  const { currencies, convert, formatAmount, language, setLanguage, favoritePairs, baseCurrency } = useAppContext();
+  const [amountText, setAmountText] = useState('100');
+  const [from, setFrom] = useState<CurrencyCode>(baseCurrency);
+  const [to, setTo] = useState<CurrencyCode>(baseCurrency === 'USD' ? 'EUR' : 'USD');
+  const [picker, setPicker] = useState<'from' | 'to' | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-
+  const [recentPairs, setRecentPairs] = useState<Array<{ from: CurrencyCode; to: CurrencyCode }>>([]);
   const isWeb = Platform.OS === 'web';
-  const topPad = isWeb ? 67 : insets.top;
-  const btmPad = isWeb ? 34 : 90;
+  const amount = Number(amountText.replace(',', '.').replace(/[^0-9.]/g, '')) || 0;
+  const rate = convert(1, from, to);
+  const result = amount * rate;
 
-  const handleNav = (route: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.navigate(route as any);
+  const shownPairs = useMemo(() => {
+    return recentPairs.filter((pair, index, all) =>
+      index === all.findIndex(item => item.from === pair.from && item.to === pair.to),
+    ).slice(0, 3);
+  }, [recentPairs]);
+
+  const remember = (nextFrom: CurrencyCode, nextTo: CurrencyCode) => {
+    setRecentPairs(current => [{ from: nextFrom, to: nextTo }, ...current].slice(0, 3));
   };
-
-  const marketRates = (Object.keys(currencies) as CurrencyCode[])
-    .filter(code => code !== baseCurrency)
-    .map(code => ({
-      label: code,
-      value: `1 ${baseCurrency} = ${convert(1, baseCurrency, code).toFixed(code === 'RUB' ? 1 : 2)} ${currencies[code].symbol}`,
-      change: ((1 + currencies[code].change24h / 100) /
-        (1 + currencies[baseCurrency].change24h / 100) - 1) * 100,
-    }));
-
-  const portfolioValue = walletBalances.reduce(
-    (sum, balance) => sum + convert(balance.amount, balance.currency, baseCurrency),
-    0,
-  );
-  const previousPortfolioValue = walletBalances.reduce((sum, balance) => {
-    const currency = currencies[balance.currency];
-    const base = currencies[baseCurrency];
-    const previousCurrencyRate = currency.rateToUSD / (1 + currency.change24h / 100);
-    const previousBaseRate = base.rateToUSD / (1 + base.change24h / 100);
-    return sum + (balance.amount * previousBaseRate) / previousCurrencyRate;
-  }, 0);
-  const portfolioDelta = portfolioValue - previousPortfolioValue;
-  const portfolioDeltaPercent = previousPortfolioValue === 0
-    ? 0
-    : (portfolioDelta / previousPortfolioValue) * 100;
-  const portfolioDirectionColor = portfolioDelta >= 0 ? '#5DFFCD' : '#FF8585';
-
-  const displayPairs = favoritePairs.length > 0
-    ? favoritePairs.slice(0, 4)
-    : CURRENCY_PAIRS;
+  const selectCurrency = (code: CurrencyCode) => {
+    if (picker === 'from') {
+      const nextTo = code === to ? from : to;
+      setFrom(code); setTo(nextTo); remember(code, nextTo);
+    } else {
+      const nextFrom = code === from ? to : from;
+      setTo(code); setFrom(nextFrom); remember(nextFrom, code);
+    }
+    setPicker(null);
+  };
+  const swap = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setFrom(to); setTo(from); remember(to, from);
+  };
+  const applyPair = (nextFrom: CurrencyCode, nextTo: CurrencyCode) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setFrom(nextFrom); setTo(nextTo); remember(nextFrom, nextTo);
+  };
 
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    scroll: { flex: 1 },
-    scrollContent: { paddingBottom: btmPad },
-    header: {
-      paddingHorizontal: 20,
-      paddingTop: topPad + 8,
-      paddingBottom: 16,
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
-    },
-    greeting: {
-      fontSize: 28,
-      fontFamily: 'Inter_700Bold',
-      color: colors.foreground,
-      letterSpacing: -0.5,
-    },
-    date: {
-      fontSize: 14,
-      fontFamily: 'Inter_400Regular',
-      color: colors.mutedForeground,
-      marginTop: 2,
-    },
-    settingsBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.secondary,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: 4,
-    },
-    sectionPad: { paddingHorizontal: 20 },
-    sectionLabel: {
-      fontSize: 12,
-      fontFamily: 'Inter_600SemiBold',
-      color: colors.mutedForeground,
-      letterSpacing: 0.8,
-      textTransform: 'uppercase',
-      marginBottom: 10,
-      marginTop: 20,
-    },
-    summaryCard: {
-      marginHorizontal: 20,
-      borderRadius: colors.radius,
-      overflow: 'hidden',
-    },
-    summaryGrad: { padding: 20 },
-    summaryLabel: {
-      fontSize: 11,
-      fontFamily: 'Inter_600SemiBold',
-      color: 'rgba(255,255,255,0.7)',
-      letterSpacing: 1.2,
-      textTransform: 'uppercase',
-    },
-    summaryValue: {
-      marginTop: 8,
-      fontSize: 38,
-      fontFamily: 'Inter_700Bold',
-      color: '#FFFFFF',
-      letterSpacing: -1,
-    },
-    summaryCaption: {
-      marginTop: 2,
-      fontSize: 12,
-      fontFamily: 'Inter_400Regular',
-      color: 'rgba(255,255,255,0.65)',
-    },
-    summaryBottom: {
-      marginTop: 18,
-      paddingTop: 14,
-      borderTopWidth: 1,
-      borderTopColor: 'rgba(255,255,255,0.15)',
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    summaryChange: {
-      fontSize: 14,
-      fontFamily: 'Inter_600SemiBold',
-    },
-    summaryPeriod: {
-      marginTop: 2,
-      fontSize: 11,
-      fontFamily: 'Inter_400Regular',
-      color: 'rgba(255,255,255,0.55)',
-    },
-    summaryLink: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-    },
-    summaryLinkText: {
-      fontSize: 13,
-      fontFamily: 'Inter_600SemiBold',
-      color: '#FFFFFF',
-    },
-    // Market card
-    marketCard: {
-      marginHorizontal: 20,
-      borderRadius: colors.radius,
-      overflow: 'hidden',
-    },
-    marketGrad: {
-      padding: 20,
-    },
-    marketTitle: {
-      fontSize: 11,
-      fontFamily: 'Inter_600SemiBold',
-      color: 'rgba(255,255,255,0.7)',
-      letterSpacing: 1.2,
-      textTransform: 'uppercase',
-      marginBottom: 16,
-    },
-    rateRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 10,
-    },
-    rateValue: {
-      fontSize: 16,
-      fontFamily: 'Inter_500Medium',
-      color: '#FFFFFF',
-    },
-    rateChange: {
-      fontSize: 13,
-      fontFamily: 'Inter_500Medium',
-    },
-    divider: {
-      height: 1,
-      backgroundColor: 'rgba(255,255,255,0.15)',
-      marginVertical: 12,
-    },
-    marketFooter: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-    },
-    marketFooterText: {
-      fontSize: 12,
-      fontFamily: 'Inter_400Regular',
-      color: 'rgba(255,255,255,0.55)',
-    },
-    // Favorite pairs
-    pairsRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 10,
-      paddingHorizontal: 20,
-    },
-    pairCard: {
-      flex: 1,
-      minWidth: '44%',
-      backgroundColor: colors.card,
-      borderRadius: colors.radius,
-      padding: 14,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    pairLabel: {
-      fontSize: 13,
-      fontFamily: 'Inter_600SemiBold',
-      color: colors.foreground,
-      marginBottom: 4,
-    },
-    pairRate: {
-      fontSize: 13,
-      fontFamily: 'Inter_500Medium',
-      color: colors.mutedForeground,
-    },
-    pairArrow: {
-      fontSize: 11,
-      color: colors.mutedForeground,
-      marginBottom: 2,
-    },
-    // Quick actions
-    actionsRow: {
-      flexDirection: 'row',
-      gap: 10,
-      paddingHorizontal: 20,
-      marginBottom: 24,
-    },
-    actionBtn: {
-      flex: 1,
-      backgroundColor: colors.card,
-      borderRadius: colors.radius,
-      paddingVertical: 16,
-      alignItems: 'center',
-      gap: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    actionIconBg: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    actionLabel: {
-      fontSize: 12,
-      fontFamily: 'Inter_500Medium',
-      color: colors.foreground,
-    },
-    // Disclaimer
-    disclaimer: {
-      marginHorizontal: 20,
-      marginBottom: 12,
-      padding: 12,
-      backgroundColor: colors.muted,
-      borderRadius: 10,
-      flexDirection: 'row',
-      gap: 8,
-      alignItems: 'flex-start',
-    },
-    disclaimerText: {
-      flex: 1,
-      fontSize: 12,
-      fontFamily: 'Inter_400Regular',
-      color: colors.mutedForeground,
-      lineHeight: 18,
-    },
-    // Settings modal
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: colors.overlay,
-      justifyContent: 'flex-end',
-    },
-    modalSheet: {
-      backgroundColor: colors.card,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      paddingTop: 12,
-      paddingBottom: isWeb ? 34 : insets.bottom + 20,
-    },
-    modalHandle: {
-      width: 36,
-      height: 4,
-      backgroundColor: colors.border,
-      borderRadius: 2,
-      alignSelf: 'center',
-      marginBottom: 16,
-    },
-    modalHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      marginBottom: 16,
-    },
-    modalTitle: {
-      fontSize: 18,
-      fontFamily: 'Inter_700Bold',
-      color: colors.foreground,
-    },
-    modalDone: {
-      fontSize: 16,
-      fontFamily: 'Inter_600SemiBold',
-      color: colors.primary,
-    },
-    sectionLabelModal: {
-      fontSize: 12,
-      fontFamily: 'Inter_600SemiBold',
-      color: colors.mutedForeground,
-      letterSpacing: 0.8,
-      textTransform: 'uppercase',
-      paddingHorizontal: 20,
-      marginBottom: 8,
-    },
-    langRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    langLabel: {
-      fontSize: 16,
-      fontFamily: 'Inter_400Regular',
-      color: colors.foreground,
-    },
+    content: { paddingBottom: isWeb ? 110 : 112 },
+    header: { paddingTop: (isWeb ? 67 : insets.top) + 8, paddingHorizontal: 20, paddingBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    title: { fontSize: 28, fontFamily: 'Inter_700Bold', color: colors.foreground, letterSpacing: -0.7 },
+    subtitle: { fontSize: 13, fontFamily: 'Inter_400Regular', color: colors.mutedForeground, marginTop: 2 },
+    iconButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.secondary, alignItems: 'center', justifyContent: 'center' },
+    converter: { marginHorizontal: 16, borderRadius: 24, padding: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+    fieldLabel: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: colors.mutedForeground, textTransform: 'uppercase', letterSpacing: 0.8 },
+    inputRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+    input: { flex: 1, minWidth: 0, fontSize: 38, fontFamily: 'Inter_700Bold', color: colors.foreground, letterSpacing: -1.2, paddingVertical: 4 },
+    currencyButton: { minWidth: 84, minHeight: 48, paddingHorizontal: 12, borderRadius: 14, backgroundColor: colors.secondary, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },
+    currencyCode: { fontSize: 16, fontFamily: 'Inter_700Bold', color: colors.primary },
+    divider: { height: 1, backgroundColor: colors.border, marginVertical: 10 },
+    swapButton: { position: 'absolute', right: 20, top: 91, zIndex: 2, width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.card },
+    result: { flex: 1, fontSize: 36, fontFamily: 'Inter_700Bold', color: colors.accent, letterSpacing: -1.1 },
+    meta: { marginTop: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+    rate: { flex: 1, fontSize: 13, fontFamily: 'Inter_600SemiBold', color: colors.foreground },
+    updated: { fontSize: 12, fontFamily: 'Inter_400Regular', color: colors.mutedForeground, textAlign: 'right' },
+    sectionHeader: { marginTop: 22, marginBottom: 10, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    sectionTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: colors.foreground },
+    sectionHint: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+    horizontal: { paddingHorizontal: 16, gap: 10 },
+    pair: { minWidth: 140, minHeight: 68, padding: 13, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+    pairTitle: { fontSize: 14, fontFamily: 'Inter_700Bold', color: colors.foreground },
+    pairRate: { marginTop: 5, fontSize: 12, fontFamily: 'Inter_400Regular', color: colors.mutedForeground },
+    popularRow: { paddingHorizontal: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    popular: { minWidth: 70, minHeight: 48, paddingHorizontal: 14, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+    popularCode: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: colors.foreground },
+    secondary: { margin: 20, marginTop: 28, paddingTop: 18, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: 'row', gap: 10 },
+    secondaryButton: { flex: 1, minHeight: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, backgroundColor: colors.muted },
+    secondaryText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: colors.mutedForeground },
+    overlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' },
+    sheet: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 12, paddingBottom: (isWeb ? 24 : insets.bottom + 16) },
+    handle: { width: 36, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 12 },
+    sheetTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', color: colors.foreground, paddingHorizontal: 20, paddingBottom: 10 },
+    pickerRow: { minHeight: 56, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.border, gap: 12 },
+    pickerSymbol: { width: 32, fontSize: 20, color: colors.mutedForeground },
+    pickerName: { flex: 1, fontSize: 15, fontFamily: 'Inter_500Medium', color: colors.foreground },
+    done: { minHeight: 48, paddingHorizontal: 20, justifyContent: 'center' },
+    doneText: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: colors.primary, textAlign: 'right' },
   });
 
-  return (
-    <View style={s.container}>
-      <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={s.header}>
-          <View>
-            <Text style={s.greeting}>{getGreeting(t)}</Text>
-            <Text style={s.date}>{formatDate(language)}</Text>
-          </View>
-          <TouchableOpacity
-            style={s.settingsBtn}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSettingsOpen(true); }}
-          >
-            <Feather name="settings" size={18} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Immediate portfolio summary in the base currency selected at onboarding */}
-        <TouchableOpacity
-          style={s.summaryCard}
-          onPress={() => handleNav('/wallet')}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={`${t('moneyNow')}: ${formatAmount(portfolioValue)} ${baseCurrency}`}
-        >
-          <LinearGradient
-            colors={[colors.gradientStart, colors.gradientEnd]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={s.summaryGrad}
-          >
-            <Text style={s.summaryLabel}>{t('moneyNow')}</Text>
-            <Text style={s.summaryValue}>{formatAmount(portfolioValue)} {baseCurrency}</Text>
-            <Text style={s.summaryCaption}>{t('acrossCurrencies')}</Text>
-            <View style={s.summaryBottom}>
-              <View>
-                <Text style={[s.summaryChange, { color: portfolioDirectionColor }]}>
-                  {portfolioDelta >= 0 ? '+' : '−'}{formatAmount(Math.abs(portfolioDelta))} {baseCurrency}
-                  {'  '}{portfolioDelta >= 0 ? '+' : '−'}{Math.abs(portfolioDeltaPercent).toFixed(2)}%
-                </Text>
-                <Text style={s.summaryPeriod}>{t('sinceYesterday')}</Text>
-              </View>
-              <View style={s.summaryLink}>
-                <Text style={s.summaryLinkText}>{t('openWallet')}</Text>
-                <Feather name="chevron-right" size={16} color="#FFFFFF" />
-              </View>
-            </View>
-          </LinearGradient>
+  return <View style={s.container}>
+    <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <View style={s.header}>
+        <View><Text style={s.title}>{t('converterTitle')}</Text><Text style={s.subtitle}>{t('converterSubtitle')}</Text></View>
+        <TouchableOpacity style={s.iconButton} onPress={() => setSettingsOpen(true)} accessibilityRole="button" accessibilityLabel={t('settings')}>
+          <Feather name="settings" size={19} color={colors.mutedForeground} />
         </TouchableOpacity>
-
-        {/* Market overview card */}
-        <Text style={[s.sectionLabel, s.sectionPad]}>{t('marketOverview')}</Text>
-        <View style={s.marketCard}>
-          <LinearGradient
-            colors={[colors.gradientStart, colors.gradientEnd]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={s.marketGrad}
-          >
-            <Text style={s.marketTitle}>{baseCurrency}</Text>
-            {marketRates.map((r, i) => (
-              <React.Fragment key={r.label}>
-                <View style={s.rateRow}>
-                  <Text style={s.rateValue}>{r.value}</Text>
-                  <Text style={[s.rateChange, { color: r.change >= 0 ? '#5DFFCD' : '#FF8585' }]}>
-                    {r.change >= 0 ? '+' : ''}{r.change.toFixed(2)}%
-                  </Text>
-                </View>
-                {i < marketRates.length - 1 && <View style={s.divider} />}
-              </React.Fragment>
-            ))}
-            <View style={[s.divider, { marginBottom: 8 }]} />
-            <View style={s.marketFooter}>
-              <Feather name="info" size={12} color="rgba(255,255,255,0.5)" />
-              <Text style={s.marketFooterText}>{t('testData')} — {formatDate(language)}</Text>
-            </View>
-          </LinearGradient>
+      </View>
+      <View style={s.converter}>
+        <Text style={s.fieldLabel}>{t('from')}</Text>
+        <View style={s.inputRow}>
+          <TextInput style={s.input} value={amountText} onChangeText={setAmountText} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={colors.border} maxLength={12} accessibilityLabel={t('amount')} />
+          <TouchableOpacity style={s.currencyButton} onPress={() => setPicker('from')}><Text style={s.currencyCode}>{from}</Text><Ionicons name="chevron-down" size={14} color={colors.primary} /></TouchableOpacity>
         </View>
-
-        {/* Favorite pairs */}
-        <Text style={[s.sectionLabel, s.sectionPad]}>{t('quickActions')}</Text>
-        <View style={s.pairsRow}>
-          {displayPairs.map(pair => {
-            const rate = convert(1, pair.from, pair.to);
-            const sym = { USD: '$', EUR: '€', ILS: '₪', RUB: '₽', BYN: 'Br' };
-            return (
-              <TouchableOpacity
-                key={`${pair.from}-${pair.to}`}
-                style={s.pairCard}
-                onPress={() => handleNav('/convert')}
-                activeOpacity={0.7}
-              >
-                <Text style={s.pairArrow}>{pair.from} → {pair.to}</Text>
-                <Text style={s.pairLabel}>{sym[pair.from]}1 = {sym[pair.to]}{rate.toFixed(pair.to === 'RUB' ? 1 : 2)}</Text>
-                <Text style={[s.pairRate, { color: currencies[pair.to].change24h >= 0 ? colors.positive : colors.negative }]}>
-                  {currencies[pair.to].change24h >= 0 ? '+' : ''}{currencies[pair.to].change24h.toFixed(2)}%
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        <View style={s.divider} />
+        <TouchableOpacity style={s.swapButton} onPress={swap} accessibilityRole="button" accessibilityLabel={t('swapCurrencies')}><Ionicons name="swap-vertical" size={21} color="#FFF" /></TouchableOpacity>
+        <Text style={s.fieldLabel}>{t('to')}</Text>
+        <View style={s.inputRow}>
+          <Text style={s.result} numberOfLines={1} adjustsFontSizeToFit>{SYMBOLS[to]}{formatAmount(result)}</Text>
+          <TouchableOpacity style={s.currencyButton} onPress={() => setPicker('to')}><Text style={s.currencyCode}>{to}</Text><Ionicons name="chevron-down" size={14} color={colors.primary} /></TouchableOpacity>
         </View>
+        <View style={s.meta}><Text style={s.rate}>1 {from} = {rate.toFixed(4)} {to}</Text><Text style={s.updated}>{t('updatedNow')}</Text></View>
+      </View>
 
-        {/* Quick actions */}
-        <Text style={[s.sectionLabel, s.sectionPad, { marginTop: 20 }]}></Text>
-        <View style={s.actionsRow}>
-          <TouchableOpacity style={s.actionBtn} onPress={() => handleNav('/convert')} activeOpacity={0.7}>
-            <View style={[s.actionIconBg, { backgroundColor: colors.secondary }]}>
-              <Ionicons name="swap-horizontal" size={20} color={colors.primary} />
-            </View>
-            <Text style={s.actionLabel}>{t('goToConverter')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.actionBtn} onPress={() => handleNav('/ai')} activeOpacity={0.7}>
-            <View style={[s.actionIconBg, { backgroundColor: '#F0F7FF' }]}>
-              <Ionicons name="sparkles" size={20} color="#5B9BFF" />
-            </View>
-            <Text style={s.actionLabel}>{t('askAI')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.actionBtn} onPress={() => handleNav('/wallet')} activeOpacity={0.7}>
-            <View style={[s.actionIconBg, { backgroundColor: colors.accent + '20' }]}>
-              <Feather name="credit-card" size={20} color={colors.accent} />
-            </View>
-            <Text style={s.actionLabel}>{t('addFunds')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Disclaimer */}
-        <View style={s.disclaimer}>
-          <Feather name="alert-circle" size={14} color={colors.mutedForeground} style={{ marginTop: 1 }} />
-          <Text style={s.disclaimerText}>{t('rateDisclaimer')}</Text>
-        </View>
+      <View style={s.sectionHeader}><Text style={s.sectionTitle}>{t('favoritePairs')}</Text><Text style={s.sectionHint}>{t('tapToUse')}</Text></View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.horizontal}>
+        {(favoritePairs.length ? favoritePairs : [{ from: 'USD' as CurrencyCode, to: 'EUR' as CurrencyCode }]).slice(0, 4).map(pair =>
+          <TouchableOpacity key={`${pair.from}-${pair.to}`} style={s.pair} onPress={() => applyPair(pair.from, pair.to)}>
+            <Text style={s.pairTitle}>{pair.from} → {pair.to}</Text><Text style={s.pairRate}>1 {pair.from} = {convert(1, pair.from, pair.to).toFixed(3)} {pair.to}</Text>
+          </TouchableOpacity>)}
       </ScrollView>
 
-      {/* Settings Modal */}
-      <Modal
-        visible={settingsOpen}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setSettingsOpen(false)}
-      >
-        <TouchableOpacity
-          style={s.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setSettingsOpen(false)}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={s.modalSheet}>
-              <View style={s.modalHandle} />
-              <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>{t('settings')}</Text>
-                <TouchableOpacity onPress={() => setSettingsOpen(false)}>
-                  <Text style={s.modalDone}>{t('done')}</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={s.sectionLabelModal}>{t('language')}</Text>
-              {LANGS.map(l => (
-                <TouchableOpacity
-                  key={l.code}
-                  style={s.langRow}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setLanguage(l.code);
-                  }}
-                >
-                  <Text style={s.langLabel}>{l.label}</Text>
-                  {language === l.code && (
-                    <Ionicons name="checkmark" size={20} color={colors.primary} />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-    </View>
-  );
+      <View style={s.sectionHeader}><Text style={s.sectionTitle}>{t('recentConversions')}</Text></View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.horizontal}>
+        {shownPairs.length ? shownPairs.map(pair => <TouchableOpacity key={`recent-${pair.from}-${pair.to}`} style={s.pair} onPress={() => applyPair(pair.from, pair.to)}><Text style={s.pairTitle}>{pair.from} → {pair.to}</Text><Text style={s.pairRate}>{t('repeatConversion')}</Text></TouchableOpacity>) : <Text style={s.sectionHint}>{t('noRecentConversions')}</Text>}
+      </ScrollView>
+
+      <View style={s.sectionHeader}><Text style={s.sectionTitle}>{t('popularCurrencies')}</Text></View>
+      <View style={s.popularRow}>{POPULAR.map(code => <TouchableOpacity key={code} style={s.popular} onPress={() => { const nextFrom = code === to ? from : to; setFrom(nextFrom); setTo(code); remember(nextFrom, code); }}><Text style={{ color: colors.mutedForeground }}>{SYMBOLS[code]}</Text><Text style={s.popularCode}>{code}</Text></TouchableOpacity>)}</View>
+
+      <View style={s.secondary}>
+        <TouchableOpacity style={s.secondaryButton} onPress={() => router.navigate('/wallet')}><Feather name="credit-card" size={15} color={colors.mutedForeground} /><Text style={s.secondaryText}>{t('wallet')}</Text></TouchableOpacity>
+        <TouchableOpacity style={s.secondaryButton} onPress={() => router.navigate('/ai')}><Ionicons name="sparkles-outline" size={16} color={colors.mutedForeground} /><Text style={s.secondaryText}>{t('ai')}</Text></TouchableOpacity>
+      </View>
+    </ScrollView>
+
+    <Modal visible={picker !== null} transparent animationType="slide" onRequestClose={() => setPicker(null)}><TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setPicker(null)}><TouchableOpacity activeOpacity={1}><View style={s.sheet}><View style={s.handle} /><Text style={s.sheetTitle}>{t('selectCurrency')}</Text>{CODES.map(code => <TouchableOpacity key={code} style={s.pickerRow} onPress={() => selectCurrency(code)}><Text style={s.pickerSymbol}>{SYMBOLS[code]}</Text><Text style={s.pickerName}>{currencies[code][language === 'ru' ? 'nameRu' : language === 'he' ? 'nameHe' : 'nameEn']}</Text><Text style={s.currencyCode}>{code}</Text></TouchableOpacity>)}</View></TouchableOpacity></TouchableOpacity></Modal>
+    <Modal visible={settingsOpen} transparent animationType="slide" onRequestClose={() => setSettingsOpen(false)}><TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setSettingsOpen(false)}><TouchableOpacity activeOpacity={1}><View style={s.sheet}><View style={s.handle} /><TouchableOpacity style={s.done} onPress={() => setSettingsOpen(false)}><Text style={s.doneText}>{t('done')}</Text></TouchableOpacity><Text style={s.sheetTitle}>{t('language')}</Text>{LANGS.map(item => <TouchableOpacity key={item.code} style={s.pickerRow} onPress={() => setLanguage(item.code)}><Text style={s.pickerName}>{item.label}</Text>{language === item.code && <Ionicons name="checkmark" size={20} color={colors.primary} />}</TouchableOpacity>)}</View></TouchableOpacity></TouchableOpacity></Modal>
+  </View>;
 }
