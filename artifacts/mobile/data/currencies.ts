@@ -10,7 +10,17 @@ export interface CurrencyInfo {
   nameHe: string;
   rateToUSD: number;
   change24h: number; // mock 24h % change
+  flag: string;
 }
+
+const FLAGS: Record<string, string> = {
+  USD: '🇺🇸', EUR: '🇪🇺', GBP: '🇬🇧', JPY: '🇯🇵', CNY: '🇨🇳',
+  AUD: '🇦🇺', CAD: '🇨🇦', CHF: '🇨🇭', ILS: '🇮🇱', RUB: '🇷🇺',
+  BYN: '🇧🇾', TRY: '🇹🇷', AED: '🇦🇪', SAR: '🇸🇦', INR: '🇮🇳',
+  KRW: '🇰🇷', BRL: '🇧🇷', MXN: '🇲🇽', SGD: '🇸🇬', HKD: '🇭🇰',
+  NZD: '🇳🇿', SEK: '🇸🇪', NOK: '🇳🇴', DKK: '🇩🇰', PLN: '🇵🇱',
+  CZK: '🇨🇿', UAH: '🇺🇦', ZAR: '🇿🇦', THB: '🇹🇭', IDR: '🇮🇩',
+};
 
 // ~160 active ISO 4217 currencies
 const RAW: Array<[
@@ -195,6 +205,7 @@ export const ALL_CURRENCIES: CurrencyInfo[] = RAW.map(
     nameEn, nameRu,
     nameHe: nameHe || nameEn,
     rateToUSD, change24h,
+    flag: FLAGS[code] ?? '🌐',
   })
 ).sort((a, b) => a.code.localeCompare(b.code));
 
