@@ -42,7 +42,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const t = useTranslation();
-  const { currencies, convert, language, setLanguage, favoritePairs } = useAppContext();
+  const { currencies, convert, language, setLanguage, favoritePairs, baseCurrency } = useAppContext();
   const router = useRouter();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -55,12 +55,13 @@ export default function HomeScreen() {
     router.navigate(route as any);
   };
 
-  const marketRates = [
-    { label: 'ILS', value: `1 USD = ${convert(1, 'USD', 'ILS').toFixed(2)} ₪`, change: currencies.ILS.change24h },
-    { label: 'EUR', value: `1 USD = ${convert(1, 'USD', 'EUR').toFixed(3)} €`, change: currencies.EUR.change24h },
-    { label: 'RUB', value: `1 USD = ${convert(1, 'USD', 'RUB').toFixed(1)} ₽`, change: currencies.RUB.change24h },
-    { label: 'BYN', value: `1 USD = ${convert(1, 'USD', 'BYN').toFixed(2)} Br`, change: currencies.BYN.change24h },
-  ];
+  const marketRates = (Object.keys(currencies) as CurrencyCode[])
+    .filter(code => code !== baseCurrency)
+    .map(code => ({
+      label: code,
+      value: `1 ${baseCurrency} = ${convert(1, baseCurrency, code).toFixed(code === 'RUB' ? 1 : 2)} ${currencies[code].symbol}`,
+      change: currencies[code].change24h,
+    }));
 
   const displayPairs = favoritePairs.length > 0
     ? favoritePairs.slice(0, 4)
