@@ -14,7 +14,7 @@ export interface CurrencyInfo {
 }
 
 /** Codes without one honest country/territory flag. Keep this list explicit and audited. */
-export const NEUTRAL_ICON_CODES = ['EUR', 'XCD', 'XPF', 'XAF', 'XOF', 'XAU', 'XAG', 'XDR'] as const;
+export const NEUTRAL_ICON_CODES = ['XCD', 'XPF', 'XAF', 'XOF', 'XAU', 'XAG', 'XDR'] as const;
 export const NEUTRAL_CURRENCY_ICON = '🌐';
 
 const COUNTRY_BY_CURRENCY: Record<string, string> = {
@@ -22,7 +22,7 @@ const COUNTRY_BY_CURRENCY: Record<string, string> = {
   CAD: 'CA', CLP: 'CL', COP: 'CO', CRC: 'CR', CUP: 'CU', DOP: 'DO', GTQ: 'GT', GYD: 'GY',
   HNL: 'HN', HTG: 'HT', JMD: 'JM', KYD: 'KY', MXN: 'MX', NIO: 'NI', PAB: 'PA', PEN: 'PE',
   PYG: 'PY', SRD: 'SR', TTD: 'TT', USD: 'US', UYU: 'UY', VES: 'VE',
-  ALL: 'AL', AMD: 'AM', AZN: 'AZ', BAM: 'BA', BGN: 'BG', BYN: 'BY', CHF: 'CH', CZK: 'CZ',
+  ALL: 'AL', AMD: 'AM', AZN: 'AZ', BAM: 'BA', BGN: 'BG', BYN: 'BY', CHF: 'CH', CZK: 'CZ', EUR: 'EU',
   DKK: 'DK', GBP: 'GB', GEL: 'GE', HUF: 'HU', ISK: 'IS', KGS: 'KG', KZT: 'KZ', MDL: 'MD',
   MKD: 'MK', NOK: 'NO', PLN: 'PL', RON: 'RO', RSD: 'RS', RUB: 'RU', SEK: 'SE', TJS: 'TJ',
   TMT: 'TM', TRY: 'TR', UAH: 'UA', UZS: 'UZ', AED: 'AE', AFN: 'AF', BHD: 'BH', ILS: 'IL',

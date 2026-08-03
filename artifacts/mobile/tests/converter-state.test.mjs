@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   ALL_CURRENCIES,
+  CURRENCY_MAP,
   NEUTRAL_CURRENCY_ICON,
   NEUTRAL_ICON_CODES,
 } from '../data/currencies.ts';
@@ -23,6 +24,14 @@ test('every catalog currency has a flag or an explicitly allowed neutral icon', 
       `${currency.code} has the wrong national/neutral treatment`,
     );
   }
+});
+
+test('key currencies use their exact national or union flags', () => {
+  assert.deepEqual(
+    Object.fromEntries(['ILS', 'USD', 'EUR', 'GBP', 'CAD', 'CHF', 'AED', 'UAH', 'JPY'].map((code) => [code, CURRENCY_MAP[code].flag])),
+    { ILS: '🇮🇱', USD: '🇺🇸', EUR: '🇪🇺', GBP: '🇬🇧', CAD: '🇨🇦', CHF: '🇨🇭', AED: '🇦🇪', UAH: '🇺🇦', JPY: '🇯🇵' },
+  );
+  for (const code of NEUTRAL_ICON_CODES) assert.equal(CURRENCY_MAP[code].flag, NEUTRAL_CURRENCY_ICON);
 });
 
 test('version 2 short preferences migrate once to the version 3 default set', () => {
