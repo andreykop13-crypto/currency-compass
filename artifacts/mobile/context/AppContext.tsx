@@ -1,18 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { CURRENCY_MAP, CurrencyInfo } from '@/data/currencies';
+import { normalizeConverterCurrencies, isCurrencyCode } from '@/data/appState';
 
 export type Language = 'ru' | 'en' | 'he';
-export type CurrencyCode = 'USD' | 'EUR' | 'ILS' | 'RUB' | 'BYN';
-
-export interface Currency {
-  code: CurrencyCode;
-  symbol: string;
-  nameRu: string;
-  nameEn: string;
-  nameHe: string;
-  rateToUSD: number; // units of currency per 1 USD
-  change24h: number; // % change
-}
+export type CurrencyCode = string;
+export type Currency = CurrencyInfo;
 
 export interface WalletBalance {
   id: string;
@@ -28,13 +21,17 @@ export interface FavoritePair {
 interface AppContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  currencies: Record<CurrencyCode, Currency>;
+  currencies: Record<string, Currency>;
   walletBalances: WalletBalance[];
   addBalance: (currency: CurrencyCode, amount: number) => void;
   updateBalance: (id: string, amount: number) => void;
   removeBalance: (id: string) => void;
   baseCurrency: CurrencyCode;
   setBaseCurrency: (currency: CurrencyCode) => void;
+  activeCurrency: CurrencyCode;
+  setActiveCurrency: (currency: CurrencyCode) => void;
+  targetCurrencies: CurrencyCode[];
+  setTargetCurrencies: (currencies: CurrencyCode[]) => void;
   needsOnboarding: boolean;
   completeOnboarding: (currency: CurrencyCode) => void;
   convert: (amount: number, from: CurrencyCode, to: CurrencyCode) => number;
@@ -47,58 +44,9 @@ interface AppContextType {
   addRecentCurrency: (code: string) => void;
 }
 
-const CURRENCIES: Record<CurrencyCode, Currency> = {
-  USD: {
-    code: 'USD',
-    symbol: '$',
-    nameRu: 'Доллар США',
-    nameEn: 'US Dollar',
-    nameHe: 'דולר אמריקאי',
-    rateToUSD: 1.0,
-    change24h: 0,
-  },
-  EUR: {
-    code: 'EUR',
-    symbol: '€',
-    nameRu: 'Евро',
-    nameEn: 'Euro',
-    nameHe: 'יורו',
-    rateToUSD: 0.925,
-    change24h: 0.12,
-  },
-  ILS: {
-    code: 'ILS',
-    symbol: '₪',
-    nameRu: 'Израильский шекель',
-    nameEn: 'Israeli Shekel',
-    nameHe: 'שקל ישראלי',
-    rateToUSD: 3.67,
-    change24h: -0.43,
-  },
-  RUB: {
-    code: 'RUB',
-    symbol: '₽',
-    nameRu: 'Российский рубль',
-    nameEn: 'Russian Ruble',
-    nameHe: 'רובל רוסי',
-    rateToUSD: 90.5,
-    change24h: 0.85,
-  },
-  BYN: {
-    code: 'BYN',
-    symbol: 'Br',
-    nameRu: 'Белорусский рубль',
-    nameEn: 'Belarusian Ruble',
-    nameHe: 'רובל בלרוסי',
-    rateToUSD: 3.27,
-    change24h: 0.22,
-  },
-};
-
 const AppContext = createContext<AppContextType | null>(null);
 
 const STORAGE_KEY = '@currency-compass/app-state-v1';
-const CURRENCY_CODES: CurrencyCode[] = ['USD', 'EUR', 'ILS', 'RUB', 'BYN'];
 const LANGUAGES: Language[] = ['ru', 'en', 'he'];
 
 interface PersistedAppState {
@@ -108,10 +56,9 @@ interface PersistedAppState {
   favoritePairs: FavoritePair[];
   recentCurrencies: string[];
   onboardingCompleted: boolean;
+  activeCurrency: CurrencyCode;
+  targetCurrencies: CurrencyCode[];
 }
-
-const isCurrencyCode = (value: unknown): value is CurrencyCode =>
-  typeof value === 'string' && CURRENCY_CODES.includes(value as CurrencyCode);
 
 const isLanguage = (value: unknown): value is Language =>
   typeof value === 'string' && LANGUAGES.includes(value as Language);
@@ -126,6 +73,9 @@ function parsePersistedState(value: string): Partial<PersistedAppState> {
   if (isLanguage(state.language)) result.language = state.language;
   if (isCurrencyCode(state.baseCurrency))
     result.baseCurrency = state.baseCurrency;
+  const converter = normalizeConverterCurrencies(state.activeCurrency, state.targetCurrencies);
+  result.activeCurrency = converter.activeCurrency;
+  result.targetCurrencies = converter.targetCurrencies;
   if (typeof state.onboardingCompleted === 'boolean')
     result.onboardingCompleted = state.onboardingCompleted;
 
@@ -165,6 +115,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [language, setLanguage] = useState<Language>('ru');
   const [baseCurrency, setBaseCurrency] = useState<CurrencyCode>('USD');
+  const [activeCurrency, setActiveCurrencyState] = useState<CurrencyCode>('USD');
+  const [targetCurrencies, setTargetCurrenciesState] = useState<CurrencyCode[]>(['EUR', 'ILS', 'GBP']);
   const [walletBalances, setWalletBalances] = useState<WalletBalance[]>([
     { id: '1', currency: 'USD', amount: 1500 },
     { id: '2', currency: 'EUR', amount: 800 },
@@ -191,6 +143,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (saved.onboardingCompleted === false) setNeedsOnboarding(true);
         if (saved.language) setLanguage(saved.language);
         if (saved.baseCurrency) setBaseCurrency(saved.baseCurrency);
+        if (saved.activeCurrency) setActiveCurrencyState(saved.activeCurrency);
+        if (saved.targetCurrencies) setTargetCurrenciesState(saved.targetCurrencies);
         if (saved.walletBalances) setWalletBalances(saved.walletBalances);
         if (saved.favoritePairs) setFavoritePairs(saved.favoritePairs);
         if (saved.recentCurrencies) setRecentCurrencies(saved.recentCurrencies);
@@ -215,6 +169,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       favoritePairs,
       recentCurrencies,
       onboardingCompleted: !needsOnboarding,
+      activeCurrency,
+      targetCurrencies,
     };
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch((error) =>
       console.warn('Unable to save app state', error),
@@ -227,6 +183,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     favoritePairs,
     recentCurrencies,
     needsOnboarding,
+    activeCurrency,
+    targetCurrencies,
   ]);
 
   if (!hasHydrated) return null;
@@ -247,8 +205,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     from: CurrencyCode,
     to: CurrencyCode,
   ): number => {
-    const fromRate = CURRENCIES[from].rateToUSD;
-    const toRate = CURRENCIES[to].rateToUSD;
+    const fromRate = CURRENCY_MAP[from].rateToUSD;
+    const toRate = CURRENCY_MAP[to].rateToUSD;
     return (amount * toRate) / fromRate;
   };
 
@@ -290,7 +248,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getCurrencyName = (code: CurrencyCode): string => {
-    const c = CURRENCIES[code];
+    const c = CURRENCY_MAP[code];
     if (language === 'en') return c.nameEn;
     if (language === 'he') return c.nameHe;
     return c.nameRu;
@@ -301,13 +259,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       value={{
         language,
         setLanguage,
-        currencies: CURRENCIES,
+        currencies: CURRENCY_MAP,
         walletBalances,
         addBalance,
         updateBalance,
         removeBalance,
         baseCurrency,
         setBaseCurrency,
+        activeCurrency,
+        setActiveCurrency: (code) => {
+          if (!isCurrencyCode(code)) return;
+          setActiveCurrencyState(code);
+          setTargetCurrenciesState((targets) => normalizeConverterCurrencies(code, targets).targetCurrencies);
+        },
+        targetCurrencies,
+        setTargetCurrencies: (targets) =>
+          setTargetCurrenciesState(normalizeConverterCurrencies(activeCurrency, targets).targetCurrencies),
         needsOnboarding,
         completeOnboarding,
         convert,
@@ -331,4 +298,4 @@ export function useAppContext(): AppContextType {
   return ctx;
 }
 
-export { CURRENCIES };
+export { CURRENCY_MAP as CURRENCIES };

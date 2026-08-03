@@ -91,6 +91,7 @@ export default function CurrencyPicker({
       c.code.toLowerCase().includes(q) ||
       c.nameEn.toLowerCase().includes(q) ||
       (c.nameRu && c.nameRu.toLowerCase().includes(q)) ||
+      (c.nameHe && c.nameHe.toLowerCase().includes(q)) ||
       c.symbol.toLowerCase().includes(q)
     );
   }, [query]);
@@ -133,8 +134,8 @@ export default function CurrencyPicker({
       color: colors.foreground,
     },
     closeBtn: {
-      width: 32, height: 32,
-      borderRadius: 16,
+      width: 44, height: 44,
+      borderRadius: 22,
       backgroundColor: colors.muted,
       alignItems: 'center',
       justifyContent: 'center',
