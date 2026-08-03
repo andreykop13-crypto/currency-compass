@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAppContext } from '@/context/AppContext';
 import { CurrencyInfo, ALL_CURRENCIES, POPULAR_CODES } from '@/data/currencies';
+import CurrencyFlag from '@/components/CurrencyFlag';
 
 interface Props {
   visible: boolean;
@@ -175,7 +176,6 @@ export default function CurrencyPicker({
       borderWidth: 1,
       borderColor: colors.border,
     },
-    flag: { fontSize: 23 },
     symbol: {
       fontSize: 15,
       fontFamily: 'Inter_500Medium',
@@ -183,7 +183,7 @@ export default function CurrencyPicker({
       width: 22,
       textAlign: 'center',
     },
-    info: { flex: 1 },
+    info: { flex: 1, minWidth: 0 },
     code: {
       fontSize: 15,
       fontFamily: 'Inter_700Bold',
@@ -228,7 +228,7 @@ export default function CurrencyPicker({
         activeOpacity={0.65}
       >
         <View style={s.flagContainer}>
-          <Text style={s.flag}>{item.flag}</Text>
+          <CurrencyFlag flag={item.flag} size={23} />
         </View>
         <Text style={[s.symbol, isExcluded && { opacity: 0.4 }]}>{item.symbol}</Text>
         <View style={s.info}>
