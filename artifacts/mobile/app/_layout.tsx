@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Platform, StyleSheet, View } from 'react-native';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -50,15 +51,22 @@ export default function RootLayout() {
       <AppProvider>
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
-            <GestureHandlerRootView>
+            <View style={styles.webBackground}>
+            <GestureHandlerRootView style={styles.appContainer}>
               <KeyboardProvider>
                 <RootLayoutNav />
                 <FirstRunOnboarding />
               </KeyboardProvider>
             </GestureHandlerRootView>
+            </View>
           </QueryClientProvider>
         </ErrorBoundary>
       </AppProvider>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  webBackground: { flex: 1, backgroundColor: Platform.OS === 'web' ? '#DDE3EE' : 'transparent', alignItems: 'center' },
+  appContainer: { flex: 1, width: '100%', maxWidth: Platform.OS === 'web' ? 460 : undefined },
+});
