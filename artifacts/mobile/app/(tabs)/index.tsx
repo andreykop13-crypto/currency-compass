@@ -64,22 +64,26 @@ export default function HomeScreen() {
     content: { paddingTop: insets.top + 8, paddingBottom: Platform.OS === 'web' ? 94 : 102 },
     header: { paddingHorizontal: 16 },
     title: { fontFamily: 'Inter_700Bold', fontSize: 27, color: colors.foreground, textAlign },
-    source: { marginTop: 12, borderRadius: 16, padding: 14, backgroundColor: colors.primary },
+    source: { marginTop: 10, borderRadius: 16, padding: 14, backgroundColor: colors.primary },
     sourceTop: { flexDirection: direction, alignItems: 'center', justifyContent: 'space-between' },
     sourceLabel: { color: 'rgba(255,255,255,.72)', fontFamily: 'Inter_500Medium', fontSize: 12 },
     sourceButton: { minHeight: 44, paddingHorizontal: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,.14)',
       flexDirection: direction, alignItems: 'center', gap: 7 },
+    flagBox: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,.13)' },
+    rowFlagBox: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: colors.muted, borderWidth: 1, borderColor: colors.border },
     flag: { fontSize: 22 },
     sourceCode: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 17 },
     input: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 36, minHeight: 52, paddingVertical: 2, textAlign },
     status: { flexDirection: direction, alignItems: 'center', gap: 6, marginTop: 4 },
     statusText: { color: 'rgba(255,255,255,.75)', fontFamily: 'Inter_400Regular', fontSize: 11, flexShrink: 1, textAlign },
-    headingRow: { minHeight: 54, paddingHorizontal: 16, flexDirection: direction, alignItems: 'center', justifyContent: 'space-between' },
+    headingRow: { minHeight: 50, paddingHorizontal: 16, flexDirection: direction, alignItems: 'center', justifyContent: 'space-between' },
     heading: { fontFamily: 'Inter_700Bold', fontSize: 18, color: colors.foreground },
     add: { minHeight: 44, paddingHorizontal: 8, flexDirection: direction, alignItems: 'center', gap: 4 },
     addText: { fontFamily: 'Inter_600SemiBold', color: colors.primary, fontSize: 14 },
     list: { marginHorizontal: 12, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
-    row: { height: 82, paddingStart: 12, flexDirection: direction, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border },
+    row: { height: 72, paddingStart: 12, flexDirection: direction, alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
     lastRow: { borderBottomWidth: 0 },
     identity: { width: 102, flexDirection: direction, alignItems: 'center', gap: 8 },
     identityText: { flex: 1 },
@@ -112,7 +116,8 @@ export default function HomeScreen() {
           <View style={s.sourceTop}>
             <Text style={s.sourceLabel}>{t('activeCurrency')}</Text>
             <TouchableOpacity style={s.sourceButton} onPress={() => setPickerOpen(true)} accessibilityRole="button" accessibilityLabel={t('changeActiveCurrency')}>
-              <Text style={s.flag}>{CURRENCY_MAP[activeCurrency].flag}</Text><Text style={s.sourceCode}>{activeCurrency}</Text>
+              <View style={s.flagBox}><Text style={s.flag}>{CURRENCY_MAP[activeCurrency].flag}</Text></View>
+              <Text style={s.sourceCode}>{activeCurrency}</Text>
               <Ionicons name="chevron-down" size={16} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -131,7 +136,7 @@ export default function HomeScreen() {
         const result = convert(numericAmount, activeCurrency, code);
         const rate = convert(1, activeCurrency, code);
         return <View style={[s.row, index === targetCurrencies.length - 1 && s.lastRow]} key={code}>
-          <View style={s.identity}><Text style={s.flag}>{currency.flag}</Text><View style={s.identityText}>
+          <View style={s.identity}><View style={s.rowFlagBox}><Text style={s.flag}>{currency.flag}</Text></View><View style={s.identityText}>
             <Text style={s.code}>{code}</Text><Text style={s.name} numberOfLines={1}>{getCurrencyName(code)}</Text></View></View>
           <View style={s.value}><Text style={s.result} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={.58}>
             {result.toLocaleString(undefined, { maximumFractionDigits: decimals(result) })}</Text>
@@ -162,7 +167,7 @@ export default function HomeScreen() {
             return <TouchableOpacity key={currency.code} style={[s.catalogRow, blocked && s.disabled]}
               onPress={() => toggleTarget(currency.code)} disabled={blocked} accessibilityRole="checkbox"
               accessibilityState={{ checked: selected, disabled: blocked }}>
-              <Text style={s.flag}>{currency.flag}</Text><View style={s.catalogName}><Text style={s.code}>{currency.code}</Text>
+              <View style={s.rowFlagBox}><Text style={s.flag}>{currency.flag}</Text></View><View style={s.catalogName}><Text style={s.code}>{currency.code}</Text>
                 <Text style={s.name} numberOfLines={1}>{getCurrencyName(currency.code)}</Text></View>
               <Ionicons name={selected ? 'checkmark-circle' : 'add-circle-outline'} size={25}
                 color={selected ? colors.primary : colors.mutedForeground} />

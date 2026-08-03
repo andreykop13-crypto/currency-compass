@@ -13,14 +13,35 @@ export interface CurrencyInfo {
   flag: string;
 }
 
-const FLAGS: Record<string, string> = {
-  USD: '🇺🇸', EUR: '🇪🇺', GBP: '🇬🇧', JPY: '🇯🇵', CNY: '🇨🇳',
-  AUD: '🇦🇺', CAD: '🇨🇦', CHF: '🇨🇭', ILS: '🇮🇱', RUB: '🇷🇺',
-  BYN: '🇧🇾', TRY: '🇹🇷', AED: '🇦🇪', SAR: '🇸🇦', INR: '🇮🇳',
-  KRW: '🇰🇷', BRL: '🇧🇷', MXN: '🇲🇽', SGD: '🇸🇬', HKD: '🇭🇰',
-  NZD: '🇳🇿', SEK: '🇸🇪', NOK: '🇳🇴', DKK: '🇩🇰', PLN: '🇵🇱',
-  CZK: '🇨🇿', UAH: '🇺🇦', ZAR: '🇿🇦', THB: '🇹🇭', IDR: '🇮🇩',
+/** Codes without one honest country/territory flag. Keep this list explicit and audited. */
+export const NEUTRAL_ICON_CODES = ['EUR', 'XCD', 'XPF', 'XAF', 'XOF', 'XAU', 'XAG', 'XDR'] as const;
+export const NEUTRAL_CURRENCY_ICON = '🌐';
+
+const COUNTRY_BY_CURRENCY: Record<string, string> = {
+  ARS: 'AR', AWG: 'AW', BBD: 'BB', BMD: 'BM', BOB: 'BO', BRL: 'BR', BSD: 'BS', BZD: 'BZ',
+  CAD: 'CA', CLP: 'CL', COP: 'CO', CRC: 'CR', CUP: 'CU', DOP: 'DO', GTQ: 'GT', GYD: 'GY',
+  HNL: 'HN', HTG: 'HT', JMD: 'JM', KYD: 'KY', MXN: 'MX', NIO: 'NI', PAB: 'PA', PEN: 'PE',
+  PYG: 'PY', SRD: 'SR', TTD: 'TT', USD: 'US', UYU: 'UY', VES: 'VE',
+  ALL: 'AL', AMD: 'AM', AZN: 'AZ', BAM: 'BA', BGN: 'BG', BYN: 'BY', CHF: 'CH', CZK: 'CZ',
+  DKK: 'DK', GBP: 'GB', GEL: 'GE', HUF: 'HU', ISK: 'IS', KGS: 'KG', KZT: 'KZ', MDL: 'MD',
+  MKD: 'MK', NOK: 'NO', PLN: 'PL', RON: 'RO', RSD: 'RS', RUB: 'RU', SEK: 'SE', TJS: 'TJ',
+  TMT: 'TM', TRY: 'TR', UAH: 'UA', UZS: 'UZ', AED: 'AE', AFN: 'AF', BHD: 'BH', ILS: 'IL',
+  IQD: 'IQ', IRR: 'IR', JOD: 'JO', KWD: 'KW', LBP: 'LB', OMR: 'OM', QAR: 'QA', SAR: 'SA',
+  SYP: 'SY', YER: 'YE', AUD: 'AU', BDT: 'BD', BND: 'BN', BTN: 'BT', CNY: 'CN', FJD: 'FJ',
+  HKD: 'HK', IDR: 'ID', INR: 'IN', JPY: 'JP', KHR: 'KH', KPW: 'KP', KRW: 'KR', LAK: 'LA',
+  LKR: 'LK', MMK: 'MM', MNT: 'MN', MOP: 'MO', MVR: 'MV', MYR: 'MY', NPR: 'NP', NZD: 'NZ',
+  PGK: 'PG', PHP: 'PH', PKR: 'PK', SBD: 'SB', SGD: 'SG', THB: 'TH', TOP: 'TO', TWD: 'TW',
+  VND: 'VN', VUV: 'VU', WST: 'WS', AOA: 'AO', BIF: 'BI', BWP: 'BW', CDF: 'CD', CVE: 'CV',
+  DJF: 'DJ', DZD: 'DZ', EGP: 'EG', ERN: 'ER', ETB: 'ET', GHS: 'GH', GMD: 'GM', GNF: 'GN',
+  KES: 'KE', KMF: 'KM', LRD: 'LR', LSL: 'LS', LYD: 'LY', MAD: 'MA', MGA: 'MG', MRU: 'MR',
+  MUR: 'MU', MWK: 'MW', MZN: 'MZ', NAD: 'NA', NGN: 'NG', RWF: 'RW', SCR: 'SC', SDG: 'SD',
+  SHP: 'SH', SLL: 'SL', SOS: 'SO', SSP: 'SS', STN: 'ST', SZL: 'SZ', TND: 'TN', TZS: 'TZ',
+  UGX: 'UG', ZAR: 'ZA', ZMW: 'ZM', ZWL: 'ZW',
 };
+
+function countryFlag(countryCode: string) {
+  return [...countryCode].map((letter) => String.fromCodePoint(127397 + letter.charCodeAt(0))).join('');
+}
 
 // ~160 active ISO 4217 currencies
 const RAW: Array<[
@@ -205,7 +226,9 @@ export const ALL_CURRENCIES: CurrencyInfo[] = RAW.map(
     nameEn, nameRu,
     nameHe: nameHe || nameEn,
     rateToUSD, change24h,
-    flag: FLAGS[code] ?? '🌐',
+    flag: COUNTRY_BY_CURRENCY[code]
+      ? countryFlag(COUNTRY_BY_CURRENCY[code])
+      : NEUTRAL_CURRENCY_ICON,
   })
 ).sort((a, b) => a.code.localeCompare(b.code));
 
