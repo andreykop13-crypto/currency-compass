@@ -1,7 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { CURRENCY_MAP, CurrencyInfo } from '@/data/currencies';
-import { normalizeConverterCurrencies, isCurrencyCode } from '@/data/appState';
+import {
+  CONVERTER_PREFERENCES_VERSION,
+  DEFAULT_TARGET_CURRENCIES,
+  migrateConverterCurrencies,
+  normalizeConverterCurrencies,
+  isCurrencyCode,
+} from '@/data/appState';
 
 export type Language = 'ru' | 'en' | 'he';
 export type CurrencyCode = string;
@@ -58,6 +64,7 @@ interface PersistedAppState {
   onboardingCompleted: boolean;
   activeCurrency: CurrencyCode;
   targetCurrencies: CurrencyCode[];
+  converterPreferencesVersion: number;
 }
 
 const isLanguage = (value: unknown): value is Language =>
@@ -73,7 +80,12 @@ function parsePersistedState(value: string): Partial<PersistedAppState> {
   if (isLanguage(state.language)) result.language = state.language;
   if (isCurrencyCode(state.baseCurrency))
     result.baseCurrency = state.baseCurrency;
-  const converter = normalizeConverterCurrencies(state.activeCurrency, state.targetCurrencies);
+  const converter = migrateConverterCurrencies(
+    state.converterPreferencesVersion,
+    state.activeCurrency,
+    state.targetCurrencies,
+  );
+  result.converterPreferencesVersion = converter.version;
   result.activeCurrency = converter.activeCurrency;
   result.targetCurrencies = converter.targetCurrencies;
   if (typeof state.onboardingCompleted === 'boolean')
@@ -116,7 +128,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguage] = useState<Language>('ru');
   const [baseCurrency, setBaseCurrency] = useState<CurrencyCode>('USD');
   const [activeCurrency, setActiveCurrencyState] = useState<CurrencyCode>('USD');
-  const [targetCurrencies, setTargetCurrenciesState] = useState<CurrencyCode[]>(['EUR', 'ILS', 'GBP']);
+  const [targetCurrencies, setTargetCurrenciesState] = useState<CurrencyCode[]>(DEFAULT_TARGET_CURRENCIES);
   const [walletBalances, setWalletBalances] = useState<WalletBalance[]>([
     { id: '1', currency: 'USD', amount: 1500 },
     { id: '2', currency: 'EUR', amount: 800 },
@@ -171,6 +183,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       onboardingCompleted: !needsOnboarding,
       activeCurrency,
       targetCurrencies,
+      converterPreferencesVersion: CONVERTER_PREFERENCES_VERSION,
     };
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch((error) =>
       console.warn('Unable to save app state', error),
@@ -270,7 +283,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setActiveCurrency: (code) => {
           if (!isCurrencyCode(code)) return;
           setActiveCurrencyState(code);
-          setTargetCurrenciesState((targets) => normalizeConverterCurrencies(code, targets).targetCurrencies);
+          setTargetCurrenciesState((targets) =>
+            normalizeConverterCurrencies(code, [activeCurrency, ...targets]).targetCurrencies,
+          );
         },
         targetCurrencies,
         setTargetCurrencies: (targets) =>
