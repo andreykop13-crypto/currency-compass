@@ -9,6 +9,7 @@
     "export:web": "pnpm exec expo export --platform web --clear",
     "build": "node scripts/build.js",
     "serve": "node server/serve.js",
+    "test:unit": "node --test tests/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

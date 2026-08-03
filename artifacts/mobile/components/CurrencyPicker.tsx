@@ -25,22 +25,6 @@ interface Section {
   data: CurrencyInfo[];
 }
 
-const BADGE_COLORS: Record<string, string> = {
-  USD: '#1A6BDE', EUR: '#003399', GBP: '#012169', JPY: '#BC002D',
-  CNY: '#DE2910', AUD: '#00008B', CAD: '#D80621', CHF: '#FF0000',
-  ILS: '#003366', RUB: '#003DA5', BYN: '#CF101A', TRY: '#E30A17',
-  AED: '#009A44', SAR: '#006C35', INR: '#FF9933', KRW: '#003478',
-  MXN: '#006847', BRL: '#009C3B', SGD: '#EF3340', HKD: '#DE2910',
-  NOK: '#EF2B2D', SEK: '#006AA7', DKK: '#C60C30', NZD: '#00247D',
-  THB: '#A51931', MYR: '#CC0001', IDR: '#CE1126', PHP: '#0038A8',
-  ZAR: '#007A4D', EGP: '#CE1126', NGN: '#008751', KES: '#006600',
-  XAU: '#FFD700', XAG: '#C0C0C0', XDR: '#0066CC',
-};
-
-function getBadgeColor(code: string): string {
-  return BADGE_COLORS[code] ?? '#5B6B7A';
-}
-
 export default function CurrencyPicker({
   visible, onClose, onSelect, currentCode, title, excludeCode,
 }: Props) {
@@ -182,18 +166,16 @@ export default function CurrencyPicker({
       gap: 12,
     },
     rowActive: { backgroundColor: colors.secondary },
-    badge: {
+    flagContainer: {
       width: 40, height: 40,
       borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
+      backgroundColor: colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
-    badgeText: {
-      fontSize: 11,
-      fontFamily: 'Inter_700Bold',
-      color: '#FFFFFF',
-      letterSpacing: -0.3,
-    },
+    flag: { fontSize: 23 },
     symbol: {
       fontSize: 15,
       fontFamily: 'Inter_500Medium',
@@ -245,8 +227,8 @@ export default function CurrencyPicker({
         onPress={() => handleSelect(item.code)}
         activeOpacity={0.65}
       >
-        <View style={[s.badge, { backgroundColor: getBadgeColor(item.code) }]}>
-          <Text style={s.badgeText} numberOfLines={1}>{item.code.slice(0, 3)}</Text>
+        <View style={s.flagContainer}>
+          <Text style={s.flag}>{item.flag}</Text>
         </View>
         <Text style={[s.symbol, isExcluded && { opacity: 0.4 }]}>{item.symbol}</Text>
         <View style={s.info}>
